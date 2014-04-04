@@ -5,9 +5,7 @@ On request, this http server will get a list of assets from
 the `-t` flag and return HTTP 500 with a plain text error message in
 case any request failed.
 
-It takes the path as collins attribute filter. A request to
-`/secondary_role;foobar` will send requests to all assets with the
-role `foobar`.
+It takes the path as collins attribute filter.
 
 By setting the `-auth.pass` flag, it will require HTTP basic auth.
 
@@ -26,7 +24,7 @@ By setting the `-auth.pass` flag, it will require HTTP basic auth.
 
 After starting `pingr`, you can check collins assets based on this path schema:
 
-    /pool/test/port/asset type[/optional/path/to/use/for/http/test][?attributeA=valueA&attributeB=valueB...]
+    /pool/test/port/asset-type[/optional/path/to/use/for/http/test][?attributeA=valueA&attributeB=valueB...]
 
 This will find all assets for given `asset type` and optional `attribute`s, get
 their address(es) from `pool` and use `test` on `port` with optional `path`.
@@ -37,6 +35,7 @@ Currently there are two tests implemented:
 - http: Sends an http request, status code < 200 or > 400 are considered errors
 - tcp: Connects to port, connection failures are considered errors. Path is
   ignored.
+- icmp: Execute `ping` for given asset. Port and Path is ignored.
 
 # Example
 This request will check if ssh is reachable on `int` addresses of all

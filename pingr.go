@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -19,7 +20,7 @@ import (
 	_ "net/http/pprof"
 )
 
-const samplePath = "/int/tcp/22/server_node/primary_role;web/secondary_role;default"
+const samplePath = "/int/tcp/22/server_node?primary_role=web&secondary_role=default"
 
 var (
 	client   *collins.Client
@@ -55,9 +56,16 @@ func ping(tUrl *url.URL) error {
 		return pingHttp(tUrl)
 	case "tcp":
 		return pingTcp(tUrl)
+	case "icmp":
+		return pingIcmp(tUrl)
 	default:
 		return fmt.Errorf("Scheme %s not supported", tUrl.Scheme)
 	}
+}
+
+func pingIcmp(tUrl *url.URL) error {
+	hostPort := strings.Split(tUrl.Host, ":")
+	return exec.Command("ping", "-n", "-c", "1", "-W", strconv.Itoa(int(*connectionTimeout/time.Second)), hostPort[0]).Run()
 }
 
 func pingTcp(tUrl *url.URL) error {
