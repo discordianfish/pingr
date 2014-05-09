@@ -242,6 +242,10 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		handleError(w, fmt.Sprintf("[collins unreachable] %s", err))
 		return
 	}
+	if len(assets.Data.Data) == 0 {
+		handleError(w, fmt.Sprintf("[collins] no assets found for: %v", params))
+		return
+	}
 
 	statusChan := make(chan status, len(assets.Data.Data))
 	defer close(statusChan)
