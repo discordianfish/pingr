@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"flag"
@@ -36,6 +37,7 @@ var (
 	connectionTimeout = flag.Duration("", 5*time.Second, "connect timeout for tests")
 	readWriteTimeout  = flag.Duration("timeout", 5*time.Second, "rw timeout for tests")
 
+	insecure               = flag.Bool("insecure", false, "https: skip certificate validation")
 	authHeaderInvalid      = errors.New("Invalid Authorization header")
 	authCredentialsInvalid = errors.New("Invalid user or password")
 )
@@ -53,6 +55,8 @@ func handleError(w http.ResponseWriter, msg string) {
 func ping(tUrl *url.URL) error {
 	switch tUrl.Scheme {
 	case "http":
+		return pingHttp(tUrl)
+	case "https":
 		return pingHttp(tUrl)
 	case "tcp":
 		return pingTcp(tUrl)
@@ -94,8 +98,13 @@ func pingTcp(tUrl *url.URL) error {
 }
 
 func pingHttp(tUrl *url.URL) error {
+	tlsConfig := &tls.Config{}
+	if *insecure {
+		tlsConfig.InsecureSkipVerify = true
+	}
 	client := &http.Client{
 		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
 			Dial: func(n, addr string) (net.Conn, error) {
 				conn, err := net.DialTimeout(n, addr, *connectionTimeout)
 				if err != nil {
