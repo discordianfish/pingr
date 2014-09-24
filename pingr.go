@@ -31,15 +31,15 @@ var (
 
 	user = flag.String("user", "blake", "collins username")
 	pass = flag.String("pass", "admin:first", "collins password")
-	cUrl = flag.String("url", "http://localhost:9000/api", "collins api url")
+	cURL = flag.String("url", "http://localhost:9000/api", "collins api url")
 
 	assetStatus       = flag.String("status", "Allocated", "only assets with this status")
 	connectionTimeout = flag.Duration("", 5*time.Second, "connect timeout for tests")
 	readWriteTimeout  = flag.Duration("timeout", 5*time.Second, "rw timeout for tests")
 
-	insecure               = flag.Bool("insecure", false, "https: skip certificate validation")
-	authHeaderInvalid      = errors.New("Invalid Authorization header")
-	authCredentialsInvalid = errors.New("Invalid user or password")
+	insecure                  = flag.Bool("insecure", false, "https: skip certificate validation")
+	errAuthHeaderInvalid      = errors.New("Invalid Authorization header")
+	errAuthCredentialsInvalid = errors.New("Invalid user or password")
 )
 
 type status struct {
@@ -52,33 +52,33 @@ func handleError(w http.ResponseWriter, msg string) {
 	http.Error(w, msg, http.StatusInternalServerError)
 }
 
-func ping(tUrl *url.URL) error {
-	switch tUrl.Scheme {
+func ping(tURL *url.URL) error {
+	switch tURL.Scheme {
 	case "http":
-		return pingHttp(tUrl)
+		return pingHTTP(tURL)
 	case "https":
-		return pingHttp(tUrl)
+		return pingHTTP(tURL)
 	case "tcp":
-		return pingTcp(tUrl)
+		return pingTcp(tURL)
 	case "icmp":
-		return pingIcmp(tUrl)
+		return pingIcmp(tURL)
 	default:
-		return fmt.Errorf("Scheme %s not supported", tUrl.Scheme)
+		return fmt.Errorf("Scheme %s not supported", tURL.Scheme)
 	}
 }
 
-func pingIcmp(tUrl *url.URL) error {
-	hostPort := strings.Split(tUrl.Host, ":")
+func pingIcmp(tURL *url.URL) error {
+	hostPort := strings.Split(tURL.Host, ":")
 	return exec.Command("ping", "-n", "-c", "1", "-W", strconv.Itoa(int(*connectionTimeout/time.Second)), hostPort[0]).Run()
 }
 
-func pingTcp(tUrl *url.URL) error {
-	conn, err := net.DialTimeout(tUrl.Scheme, tUrl.Host, *connectionTimeout)
+func pingTcp(tURL *url.URL) error {
+	conn, err := net.DialTimeout(tURL.Scheme, tURL.Host, *connectionTimeout)
 	if err != nil {
 		return err
 	}
 	// If a path was specified, look for it in the TCP connection output.
-	if tUrl.Path != "" {
+	if tURL.Path != "" {
 		conn.SetDeadline(time.Now().Add(*readWriteTimeout))
 		accum := ""
 		// There is no exit condition, because conn.Read will eventually timeout.
@@ -89,7 +89,7 @@ func pingTcp(tUrl *url.URL) error {
 				return err
 			}
 			accum += string(buffer[:n])
-			if strings.Contains(accum, tUrl.Path) {
+			if strings.Contains(accum, tURL.Path) {
 				return nil
 			}
 		}
@@ -97,7 +97,7 @@ func pingTcp(tUrl *url.URL) error {
 	return conn.Close()
 }
 
-func pingHttp(tUrl *url.URL) error {
+func pingHTTP(tURL *url.URL) error {
 	tlsConfig := &tls.Config{}
 	if *insecure {
 		tlsConfig.InsecureSkipVerify = true
@@ -115,7 +115,7 @@ func pingHttp(tUrl *url.URL) error {
 			},
 		},
 	}
-	resp, err := client.Get(tUrl.String())
+	resp, err := client.Get(tURL.String())
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func isAlive(tag, tType string, port int, pool, path string) error {
 	if err != nil {
 		return fmt.Errorf("[collins failed] %s", err)
 	}
-	tUrl := &url.URL{
+	tURL := &url.URL{
 		Scheme: tType,
 		Path:   path,
 	}
@@ -148,16 +148,16 @@ func isAlive(tag, tType string, port int, pool, path string) error {
 		if pool != strings.ToLower(address.Pool) {
 			continue
 		}
-		tUrl.Host = fmt.Sprintf("%s:%d", address.Address, port)
-		urls = append(urls, tUrl)
+		tURL.Host = fmt.Sprintf("%s:%d", address.Address, port)
+		urls = append(urls, tURL)
 	}
 
 	errChan := make(chan error, len(urls))
 	defer close(errChan)
-	for _, tUrl := range urls {
-		go func(tUrl *url.URL) {
-			errChan <- ping(tUrl)
-		}(tUrl)
+	for _, tURL := range urls {
+		go func(tURL *url.URL) {
+			errChan <- ping(tURL)
+		}(tURL)
 	}
 
 	statuses := []string{}
@@ -177,7 +177,7 @@ func isAlive(tag, tType string, port int, pool, path string) error {
 func isAuth(r *http.Request) error {
 	parts := strings.Split(r.Header["Authorization"][0], " ")
 	if len(parts) != 2 || parts[0] != "Basic" {
-		return authHeaderInvalid
+		return errAuthHeaderInvalid
 	}
 	auth := parts[1]
 	log.Printf("auth header: %s", auth)
@@ -187,10 +187,10 @@ func isAuth(r *http.Request) error {
 	}
 	parts = strings.Split(string(authStr), ":")
 	if len(parts) != 2 {
-		return authHeaderInvalid
+		return errAuthHeaderInvalid
 	}
 	if parts[0] != *authUser || parts[1] != *authPass {
-		return authCredentialsInvalid
+		return errAuthCredentialsInvalid
 	}
 	return nil
 }
@@ -252,7 +252,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(assets.Data.Data) == 0 {
-		handleError(w, fmt.Sprintf("[collins] no assets found for: %v", params))
+		handleError(w, fmt.Sprintf("[collins] no assets found for: %#v", params))
 		return
 	}
 
@@ -290,7 +290,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	flag.Parse()
-	client = collins.New(*user, *pass, *cUrl)
+	client = collins.New(*user, *pass, *cURL)
 
 	http.HandleFunc("/", handler)
 	log.Printf("Listening on %s", *listen)
