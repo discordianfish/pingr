@@ -139,6 +139,9 @@ func isAlive(tag, tType string, port int, pool, path string) error {
 	if err != nil {
 		return fmt.Errorf("[collins failed] %s", err)
 	}
+	if len(addresses.Data.Addresses) == 0 {
+		return fmt.Errorf("[collins failed] No adresses found for %s", tag)
+	}
 	tURL := &url.URL{
 		Scheme: tType,
 		Path:   path,
@@ -252,7 +255,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(assets.Data.Data) == 0 {
-		handleError(w, fmt.Sprintf("[collins] no assets found for: %#v", params))
+		handleError(w, fmt.Sprintf("[collins] no assets found for: %v", *params))
 		return
 	}
 
